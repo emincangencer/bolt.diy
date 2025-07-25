@@ -6,6 +6,7 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import type { NpmShell } from '~/utils/npm-shell';
 import { applyPatch } from '~/utils/diff';
 
 const logger = createScopedLogger('ActionRunner');
@@ -41,7 +42,7 @@ class ActionCommandError extends Error {
 
   constructor(message: string, output: string) {
     // Create a formatted message that includes both the error message and output
-    const formattedMessage = `Failed To Execute Shell Command: ${message}\n\nOutput:\n${output}`;
+    const formattedMessage = `Failed To Execute Shell Command: ${message}\\n\\nOutput:\\n${output}`;
     super(formattedMessage);
 
     // Set the output separately so it can be accessed programmatically
@@ -68,6 +69,7 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #npmShellTerminal: () => NpmShell;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
@@ -78,12 +80,14 @@ export class ActionRunner {
   constructor(
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
+    getNpmShellTerminal: () => NpmShell,
     onAlert?: (alert: ActionAlert) => void,
     onSupabaseAlert?: (alert: SupabaseAlert) => void,
     onDeployAlert?: (alert: DeployAlert) => void,
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
+    this.#npmShellTerminal = getNpmShellTerminal;
     this.onAlert = onAlert;
     this.onSupabaseAlert = onSupabaseAlert;
     this.onDeployAlert = onDeployAlert;
@@ -234,7 +238,7 @@ export class ActionRunner {
       }
 
       this.#updateAction(actionId, { status: 'failed', error: 'Action failed' });
-      logger.error(`[${action.type}]:Action failed\n\n`, error);
+      logger.error(`[${action.type}]:Action failed\\n\\n`, error);
 
       if (!(error instanceof ActionCommandError)) {
         return;
@@ -257,7 +261,16 @@ export class ActionRunner {
       unreachable('Expected shell action');
     }
 
-    const shell = this.#shellTerminal();
+    // Check if this is an npm-related command
+    const isNpmCommand =
+      action.content.trim().startsWith('npm install') ||
+      action.content.trim().startsWith('npm i') ||
+      action.content.trim().startsWith('pnpm install') ||
+      action.content.trim().startsWith('pnpm i') ||
+      action.content.trim().startsWith('yarn add') ||
+      action.content.trim().startsWith('npx');
+
+    const shell = isNpmCommand ? this.#npmShellTerminal() : this.#shellTerminal();
     await shell.ready();
 
     if (!shell || !shell.terminal || !shell.process) {
@@ -284,6 +297,7 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
+    // For start actions, we'll use the regular shell terminal
     const shell = this.#shellTerminal();
     await shell.ready();
 
@@ -292,7 +306,7 @@ export class ActionRunner {
     }
 
     const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
-      logger.debug(`[${action.type}]:Aborting Action\n\n`, action);
+      logger.debug(`[${action.type}]:Aborting Action\\n\\n`, action);
       action.abort();
     });
     logger.debug(`${action.type} Shell Response: [exit code:${resp?.exitCode}]`);
@@ -322,7 +336,7 @@ export class ActionRunner {
         await webcontainer.fs.mkdir(folder, { recursive: true });
         logger.debug('Created folder', folder);
       } catch (error) {
-        logger.error('Failed to create folder\n\n', error);
+        logger.error('Failed to create folder\\n\\n', error);
       }
     }
 
@@ -330,7 +344,7 @@ export class ActionRunner {
       await webcontainer.fs.writeFile(relativePath, action.content);
       logger.debug(`File written ${relativePath}`);
     } catch (error) {
-      logger.error('Failed to write file\n\n', error);
+      logger.error('Failed to write file\\n\\n', error);
     }
   }
 
@@ -353,7 +367,7 @@ export class ActionRunner {
     const currentContent = await webcontainer.fs.readFile(relativePath, 'utf-8');
 
     logger.debug(`Applying patch to ${relativePath}`, {
-      originalLines: currentContent.split('\n').length,
+      originalLines: currentContent.split('\\n').length,
       diffContent: action.content,
     });
 
@@ -369,7 +383,7 @@ export class ActionRunner {
     }
 
     logger.debug(`Patch applied successfully to ${relativePath}`, {
-      newLines: newContent.split('\n').length,
+      newLines: newContent.split('\\n').length,
       changed: newContent !== currentContent,
       newContent,
     });
@@ -379,7 +393,7 @@ export class ActionRunner {
       await webcontainer.fs.writeFile(relativePath, newContent);
       logger.debug(`File edited ${relativePath}`);
     } catch (error) {
-      logger.error('Failed to write edited file\n\n', error);
+      logger.error('Failed to write edited file\\n\\n', error);
       throw error;
     }
   }
@@ -392,7 +406,7 @@ export class ActionRunner {
       // applyPatch now always returns a string (original content if it fails)
       return result;
     } catch (error) {
-      logger.error('Failed to apply diff patch\n\n', error);
+      logger.error('Failed to apply diff patch\\n\\n', error);
       throw new Error(`Failed to apply diff patch: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

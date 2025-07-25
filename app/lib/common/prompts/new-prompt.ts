@@ -262,14 +262,18 @@ The year is 2025.
 
   Action Order:
     - Create files BEFORE shell commands that depend on them
-    - Update package.json FIRST, then install dependencies
+    - Install dependencies using the NPM Terminal (never edit package.json directly)
     - Configuration files before initialization commands
     - Start command LAST
 
   Dependencies:
-    - Update package.json with ALL dependencies upfront
-    - Run single install command
-    - Avoid individual package installations
+    - Use the NPM Terminal for all dependency management (npm install/remove package-name)
+    - Never use the Bolt Terminal for dependency management as it's reserved for the dev server
+    - Example for installing dependencies:
+      <boltAction type="shell">
+        npm install package-name
+      </boltAction>
+    - Never edit package.json directly for adding dependencies
 </artifact_instructions>
 
 <design_instructions>

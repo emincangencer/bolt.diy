@@ -81,7 +81,7 @@ export const detectProjectType = async (
       return {
         type: 'Node.js',
         setupCommand: `npm install && npm run ${availableCommand}`,
-        followupMessage: `Found "${availableCommand}" script in package.json. Running "npm run ${availableCommand}" after installation.`,
+        followupMessage: `Found "${availableCommand}" script in package.json. Installing dependencies in NPM Terminal and running "npm run ${availableCommand}" in Bolt Terminal after installation.`,
       };
     }
 
